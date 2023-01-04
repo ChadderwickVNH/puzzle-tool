@@ -1,0 +1,552 @@
+<html>
+<head>
+    <title>Chadderwick&apos;s V&amp;H Puzzle Solver</title>
+
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            padding: 10px;
+        }
+        #tabs {
+            margin: 0px 20px;
+            width: 100%;
+            cursor: pointer;
+        }
+        #tabs div {
+            display: inline;
+            padding: 10px 20px;
+            border: 1px solid white;
+            color: #666;
+        }
+        #tabs div:hover {
+            background-color: #333;
+        }
+        #tabs div.selected {
+            border-bottom: 0px;
+            color: #fff;
+        }
+        #tabs div.selected:hover {
+            background-color: #000;
+        }
+
+        #bodies div {
+            display: block;
+            padding: 20px;
+        }
+        #bodies #veldt, #bodies #catacomb {
+            display: none;
+        }
+        #bodies div div {
+            float: left;
+        }
+        #bodies div div div {
+            float: none;
+        }
+
+        #catacomb div:last-child div {
+            float: left;
+        }
+
+        input[type=checkbox] {
+            width: 20px;
+            height: 20px;
+        }
+
+    </style>
+
+    <script>
+        var CAT_MAX = 5;
+        var VEL_MAX_SWITCHES = 4;
+        var VEL_MAX_TIERS = 4;
+        var POS = [false, true];
+
+        function clickTab(tab) {
+            var id = tab.innerText.toLowerCase();
+
+            var tabs = document.getElementById("tabs");
+            tabs.childNodes.forEach(t => {
+                if (t.tagName == "DIV") {
+                    t.className = (t.innerText.toLowerCase() == id) ? "selected" : "";
+                }
+            });
+
+            var bodies = document.getElementById("bodies");
+            bodies.childNodes.forEach(b => {
+                if (b.tagName == "DIV") {
+                    b.style.display = (b.id == id) ? "block" : "none";
+                }
+            });
+        }
+
+        function changeCatCurrent() {
+            clearCatSolution();
+
+            var o = document.getElementById("cat-current");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                for (var j = 1; j <= CAT_MAX; j++) {
+                    o = document.getElementById("cat" + j);
+                    var sub = o.getElementsByTagName("INPUT");
+                    sub[i].checked = boxes[i].checked;
+                }
+            }
+        }
+
+        function changeVelCurrent() {
+            clearVelSolution();
+
+            var o = document.getElementById("vel-current");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                for (var j = 1; j <= VEL_MAX_SWITCHES; j++) {
+                    o = document.getElementById("vel" + j);
+                    var sub = o.getElementsByTagName("INPUT");
+                    sub[i].checked = boxes[i].checked;
+                }
+            }
+        }
+
+        function clearCatSolution() {
+            var o = document.getElementById("cat-solution");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = false;
+            }
+        }
+
+        function clearVelSolution() {
+            var o = document.getElementById("vel-sol-1");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = false;
+            }
+
+            o = document.getElementById("vel-sol-2");
+            boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = false;
+            }
+        }
+
+        function findVelSolution() {
+            function flipSwitch(map, index, flipped) {
+                for (var i = 0; i < POS.length; i++) {
+                    if (!run) return;
+                    if (POS[i]) {
+                        // flip switch
+                        for (var j = 0; j < switches[index].length; j++) {
+                            map[switches[index][j]] = !map[switches[index][j]];
+                        }
+                    }
+                    flipped[index] = POS[i];
+
+                    // try to walk through
+                    var max = -1;
+                    for (var j = 0; j < map.length; j++) {
+                        if (!map[j])
+                            max++;
+                        else
+                            break;
+                    }
+                    if (max === VEL_MAX_TIERS) {
+                        // can walk through
+                        sol1 = flipped;
+                        run = false;
+                        return;
+                    }
+
+                    // try to toggle switches and walk through
+                    for (var j = 0; j < switches.length; j++) {
+
+                        var map2 = map.slice();
+
+                        for (var k = 0; k < switches[j].length; k++) {
+                            map2[switches[j][k]] = !map2[switches[j][k]];
+                        }
+                        if (max > -1 && map2[max]) {
+                            // is current tier on fire?
+                            continue;
+                        }
+
+                        var max2 = max;
+                        for (var l = max; l < map.length; l++) {
+                            if (l > -1 && !map2[l])
+                                max2++;
+                            else
+                                break;
+                        }
+
+                        if (max2 === VEL_MAX_TIERS + 1) {
+                            // can walk through
+                            sol1 = flipped;
+                            sol2[j] = true;
+                            run = false;
+                            return;
+                        }
+                    }
+
+                    // next switch
+                    if (index + 1 < VEL_MAX_SWITCHES) {
+                        flipSwitch(map.slice(), index + 1, flipped.slice());
+                    }
+                }
+            }
+
+            clearVelSolution();
+
+            // switch map
+            var switches = [];
+            var current = [];
+            for (var i = 0; i < VEL_MAX_SWITCHES; i++) {
+                switches[i] = [];
+            }
+            o = document.getElementById("vel-current");
+            boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                current.push(boxes[i].checked);
+                for (var j = 1; j <= VEL_MAX_SWITCHES; j++) {
+                    o = document.getElementById("vel" + j);
+                    var sub = o.getElementsByTagName("INPUT");
+                    if (sub[i].checked !== boxes[i].checked) {
+                        switches[j - 1].push(i);
+                    }
+                }
+            }
+
+            // flip switches
+            var sol1 = [false, false, false, false];
+            var sol2 = [false, false, false, false];
+            var run = true;
+            flipSwitch(current.slice(), 0, sol1.slice());
+
+            // set solution
+            var o = document.getElementById("vel-sol-1");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = sol1[i];
+            }
+            o = document.getElementById("vel-sol-2");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = sol2[i];
+            }
+        }
+
+        function findCatSolution() {
+            function flipSwitch(map, index, flipped) {
+                if (!run) return;
+                for (var i = 0; i < POS.length; i++) {
+                    if (POS[i]) {
+                        // flip switch
+                        for (var j = 0; j < switches[index].length; j++) {
+                            map[switches[index][j]] = !map[switches[index][j]];
+                        }
+                    }
+                    flipped[index] = POS[i];
+
+                    // found solution?
+                    if (goal.join() === map.join()) {
+                        solution = flipped;
+                        run = false;
+                        return;
+                    }
+
+                    // next switch
+                    if (index + 1 < CAT_MAX) {
+                        flipSwitch(map.slice(), index + 1, flipped.slice());
+                    }
+                }
+            }
+
+            clearCatSolution();
+
+            // goal map
+            var goal = [];
+            var o = document.getElementById("cat-goal");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                goal.push(boxes[i].checked);
+            }
+
+            // switch map
+            var switches = [];
+            var current = [];
+            for (var i = 0; i < CAT_MAX; i++) {
+                switches[i] = [];
+            }
+            o = document.getElementById("cat-current");
+            boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                current.push(boxes[i].checked);
+                for (var j = 1; j <= CAT_MAX; j++) {
+                    o = document.getElementById("cat" + j);
+                    var sub = o.getElementsByTagName("INPUT");
+                    if (sub[i].checked !== boxes[i].checked) {
+                        switches[j - 1].push(i);
+                    }
+                }
+            }
+
+            // flip switches
+            var solution = [false, false, false, false, false];
+            var run = true;
+            flipSwitch(current.slice(), 0, solution.slice());
+
+            // set solution
+            var o = document.getElementById("cat-solution");
+            var boxes = o.getElementsByTagName("INPUT");
+            for (var i = 0; i < boxes.length; i++) {
+                boxes[i].checked = solution[i];
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="tabs">
+        <div class="selected" onclick="clickTab(this);">Instructions</div>
+        <div onclick="clickTab(this);">Catacomb</div>
+        <div onclick="clickTab(this);">Veldt</div>
+    </div>
+    <div id="bodies">
+        <div id="instructions">
+			By Chadderwick, US3
+			<br /><br />
+            For the Catacomb puzzle, start by filling in the current state of the puzzle under "Current" and fill
+            in the "Goal" you are trying to match; for the Veldt puzzle, you should not have to touch "Current".
+            And, then, test each lever or gong one by one and fill in the results in this application.  However,
+            be sure to trigger the same lever or gong a second time in order to return the puzzle back to its previous
+            state after you are done, before moving on to the next lever or gong.
+            <br /><br />
+            For the Veldt puzzle, there are two sets of solutions.  The first set shows what levers should be triggered.
+            The second set shows what lever should be pulled after you have somebody run to the highest platform
+            they can reach without running into flames.
+        </div>
+        <div id="catacomb">
+            <div>
+                <div id="cat-goal">
+                    Goal:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked /></td>
+                            <td><input type="checkbox" checked /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked /></td>
+                            <td><input type="checkbox" checked /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked /></td>
+                            <td><input type="checkbox" checked /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat-current">
+                    Current:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeCatCurrent();" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat-solution">
+                    Solution:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <div id="cat1">
+                    1:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat2">
+                    2:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat3">
+                    3:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat4">
+                    4:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="cat5">
+                    5:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findCatSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="veldt">
+            <div>
+                <div id="vel-current">
+                    Current:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="changeVelCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeVelCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeVelCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeVelCurrent();" /></td>
+                            <td><input type="checkbox" checked onclick="changeVelCurrent();" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="vel-sol-1">
+                    Solution, first:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="vel-sol-2">
+                    Then:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                            <td><input type="checkbox" /></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <div id="vel1">
+                    1:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="vel2">
+                    2:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="vel3">
+                    3:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+                <div id="vel4">
+                    4:
+                    <table>
+                        <tr>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                            <td><input type="checkbox" checked onclick="findVelSolution()" /></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
